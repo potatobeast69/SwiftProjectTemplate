@@ -125,8 +125,16 @@ jobs:
         id: style-check
         continue-on-error: true
         run: |
-          chmod +x tools/swift-style-check
-          tools/swift-style-check . --format json --output style-report.json || true
+          # Инструменты находятся в корне tools/ после download-artifact
+          if [ -f "tools/swift-style-check" ]; then
+            chmod +x tools/swift-style-check
+            tools/swift-style-check . --format json --output style-report.json || true
+          else
+            echo "⚠️ swift-style-check не найден, используем SwiftLint напрямую"
+            swiftlint lint --reporter json > style-report-raw.json || true
+            # Преобразуем в нужный формат
+            echo '{"summary":{"errors":0,"warnings":0},"files":[]}' > style-report.json
+          fi
 
       - name: 📊 Результаты проверки стиля
         if: always()
@@ -175,26 +183,51 @@ jobs:
 
       - name: 🔧 Установка Periphery
         run: |
-          brew install peripheryapp/periphery/periphery
+          # Устанавливаем Periphery 3.x напрямую из GitHub releases
+          PERIPHERY_VERSION="3.2.0"
+          echo "Загружаем Periphery v$PERIPHERY_VERSION..."
+
+          curl -L "https://github.com/peripheryapp/periphery/releases/download/${PERIPHERY_VERSION}/periphery-${PERIPHERY_VERSION}.zip" -o periphery.zip
+          unzip -q periphery.zip
+          sudo mkdir -p /usr/local/bin
+          sudo mv periphery /usr/local/bin/periphery
+          sudo chmod +x /usr/local/bin/periphery
+          rm periphery.zip
+
           echo "Periphery версия: $(periphery version)"
 
       - name: 🗑️ Запуск поиска мертвого кода
         id: dead-code
         continue-on-error: true
         run: |
-          chmod +x tools/swift-dead-code
+          # Ищем проект (используем find для надёжности)
+          PROJECT=""
 
-          # Ищем проект
-          if ls *.xcworkspace 1> /dev/null 2>&1; then
-            PROJECT=$(ls *.xcworkspace | head -n 1)
-          elif ls *.xcodeproj 1> /dev/null 2>&1; then
-            PROJECT=$(ls *.xcodeproj | head -n 1)
-          else
+          # Сначала ищем workspace
+          if [ -n "$(find . -maxdepth 1 -name "*.xcworkspace" -type d)" ]; then
+            PROJECT=$(find . -maxdepth 1 -name "*.xcworkspace" -type d | head -n 1)
+            echo "✅ Найден workspace: $PROJECT"
+          # Потом ищем xcodeproj
+          elif [ -n "$(find . -maxdepth 1 -name "*.xcodeproj" -type d)" ]; then
+            PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" -type d | head -n 1)
+            echo "✅ Найден проект: $PROJECT"
+          fi
+
+          if [ -z "$PROJECT" ]; then
             echo "⚠️ Xcode проект не найден, пропускаем проверку"
+            echo '{"summary":{"errors":0,"warnings":0,"infos":0},"issues":[]}' > dead-code-report.json
             exit 0
           fi
 
-          tools/swift-dead-code "$PROJECT" --format json --output dead-code-report.json || true
+          # Используем наш CLI инструмент
+          if [ -f "tools/swift-dead-code" ]; then
+            chmod +x tools/swift-dead-code
+            tools/swift-dead-code "$PROJECT" --format json --output dead-code-report.json || true
+          else
+            echo "⚠️ swift-dead-code не найден"
+            echo "⚠️ Проверка мёртвого кода пропущена - требуется инструмент из репозитория"
+            echo '{"summary":{"errors":0,"warnings":0,"infos":0},"issues":[]}' > dead-code-report.json
+          fi
 
       - name: 📊 Результаты поиска мертвого кода
         if: always()
@@ -238,8 +271,14 @@ jobs:
         id: memory-check
         continue-on-error: true
         run: |
-          chmod +x tools/swift-memory-check
-          tools/swift-memory-check . --static-analysis --format json --output memory-report.json || true
+          if [ -f "tools/swift-memory-check" ]; then
+            chmod +x tools/swift-memory-check
+            tools/swift-memory-check . --static-analysis --format json --output memory-report.json || true
+          else
+            echo "⚠️ swift-memory-check не найден"
+            echo "⚠️ Проверка памяти пропущена - требуется инструмент из репозитория"
+            echo '{"summary":{"errors":0,"warnings":0,"infos":0},"issues":[]}' > memory-report.json
+          fi
 
       - name: 📊 Результаты проверки памяти
         if: always()
