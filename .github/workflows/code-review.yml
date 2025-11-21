@@ -43,18 +43,20 @@ jobs:
           if [ -f "Package.swift" ]; then
             echo "📦 Swift Package обнаружен"
             swift build
-          elif ls *.xcworkspace 1> /dev/null 2>&1; then
-            WORKSPACE=$(ls *.xcworkspace | head -n 1)
-            SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list | grep -A 1 "Schemes:" | tail -n 1 | xargs)
-            echo "🔨 Собираю workspace: $WORKSPACE, схема: $SCHEME"
-            xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" \
+          elif find . -maxdepth 1 -name "*.xcworkspace" | grep -q .; then
+            WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -n 1)
+            WORKSPACE_NAME=$(basename "$WORKSPACE")
+            SCHEME=$(xcodebuild -workspace "$WORKSPACE_NAME" -list | grep -A 1 "Schemes:" | tail -n 1 | xargs)
+            echo "🔨 Собираю workspace: $WORKSPACE_NAME, схема: $SCHEME"
+            xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME" \
               -destination "platform=iOS Simulator,name=iPhone 16" \
               -configuration Debug clean build
-          elif ls *.xcodeproj 1> /dev/null 2>&1; then
-            PROJECT=$(ls *.xcodeproj | head -n 1)
-            SCHEME=$(xcodebuild -project "$PROJECT" -list | grep -A 1 "Schemes:" | tail -n 1 | xargs)
-            echo "🔨 Собираю проект: $PROJECT, схема: $SCHEME"
-            xcodebuild -project "$PROJECT" -scheme "$SCHEME" \
+          elif find . -maxdepth 1 -name "*.xcodeproj" | grep -q .; then
+            PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" | head -n 1)
+            PROJECT_NAME=$(basename "$PROJECT")
+            SCHEME=$(xcodebuild -project "$PROJECT_NAME" -list | grep -A 1 "Schemes:" | tail -n 1 | xargs)
+            echo "🔨 Собираю проект: $PROJECT_NAME, схема: $SCHEME"
+            xcodebuild -project "$PROJECT_NAME" -scheme "$SCHEME" \
               -destination "platform=iOS Simulator,name=iPhone 16" \
               -configuration Debug clean build
           else
@@ -136,7 +138,7 @@ jobs:
             WARNINGS=$(cat style-report.json | jq '.summary.warnings')
 
             echo "❌ Ошибок: $ERRORS"
-            echo "⚠️  Предупреждений: $WARNINGS"
+            echo "⚠️ Предупреждений: $WARNINGS"
 
             # Сохраняем для отправки на backend
             echo "STYLE_ERRORS=$ERRORS" >> $GITHUB_ENV
@@ -248,7 +250,7 @@ jobs:
             MEMORY_WARNINGS=$(cat memory-report.json | jq '.summary.warnings')
 
             echo "❌ Ошибок: $MEMORY_ERRORS"
-            echo "⚠️  Предупреждений: $MEMORY_WARNINGS"
+            echo "⚠️ Предупреждений: $MEMORY_WARNINGS"
 
             echo "MEMORY_ERRORS=$MEMORY_ERRORS" >> $GITHUB_ENV
             echo "MEMORY_WARNINGS=$MEMORY_WARNINGS" >> $GITHUB_ENV
@@ -305,15 +307,15 @@ jobs:
             STYLE_WARNINGS=$(cat reports/style-report/style-report.json | jq -r '.summary.warnings // 0')
             echo "🎨 Стиль кода: $STYLE_ERRORS ошибок, $STYLE_WARNINGS предупреждений"
           else
-            echo "⚠️  🎨 Стиль кода: отчет недоступен"
+            echo "⚠️ 🎨 Стиль кода: отчет недоступен"
           fi
 
           # Мертвый код
           if [ -f "reports/dead-code-report/dead-code-report.json" ]; then
             DEAD_CODE=$(cat reports/dead-code-report/dead-code-report.json | jq -r '.summary.warnings // 0')
-            echo "🗑️  Неиспользуемый код: $DEAD_CODE элементов"
+            echo "🗑️ Неиспользуемый код: $DEAD_CODE элементов"
           else
-            echo "⚠️  🗑️  Неиспользуемый код: отчет недоступен"
+            echo "⚠️ 🗑️ Неиспользуемый код: отчет недоступен"
           fi
 
           # Утечки памяти
@@ -322,7 +324,7 @@ jobs:
             MEM_WARNINGS=$(cat reports/memory-report/memory-report.json | jq -r '.summary.warnings // 0')
             echo "💾 Утечки памяти: $MEM_ERRORS ошибок, $MEM_WARNINGS предупреждений"
           else
-            echo "⚠️  💾 Утечки памяти: отчет недоступен"
+            echo "⚠️ 💾 Утечки памяти: отчет недоступен"
           fi
 
           echo ""
@@ -357,7 +359,7 @@ jobs:
           echo "📤 ОТПРАВКА НА BACKEND"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
-          echo "⚠️  Backend URL не настроен"
+          echo "⚠️ Backend URL не настроен"
           echo ""
           echo "💡 Чтобы отправлять результаты на ваш backend:"
           echo "   1. Добавьте secret BACKEND_URL в настройках репозитория"
